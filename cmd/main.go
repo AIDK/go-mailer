@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/mail"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,6 +16,14 @@ func main() {
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// Model is the main Model for the program
+// it contains a slice of text inputs, the index of the currently focused input,
+type model struct {
+	inputs  []textinput.Model
+	focused int
+	err     error
 }
 
 type (
@@ -41,42 +50,30 @@ var (
 	continueStyle = lipgloss.NewStyle().Foreground(darkGrey)
 )
 
-// model is the main model for the program
-// it contains a slice of text inputs, the index of the currently focused input,
-type model struct {
-	inputs  []textinput.Model
-	focused int
-	err     error
+// validateAddress validates the email address
+func (m model) validateAddress() error {
+
+	var err error
+
+	c := m.inputs[m.focused]
+	if _, err = mail.ParseAddress(c.Value()); err != nil {
+		err = fmt.Errorf("invalid email address")
+	}
+
+	return err
 }
 
-// toAddressValidator is a simple validator for email addresses
-func toAddressValidator(s string) error {
-	// TODO: Implement email to address validation
-	return nil
-}
+// func stringValidator(s string) error {
 
-// fromAddressValidator is a simple validator for email addresses
-func fromAddressValidator(s string) error {
-	// TODO: Implement email from address validation
-	return nil
-}
+// 	if len(s) == 0 {
+// 		return fmt.Errorf("input cannot be empty")
+// 	}
 
-// subjectValidator is a simple validator for email subjects
-func subjectValidator(s string) error {
-	// TODO: Implement email subject validation
-	return nil
-}
-
-// bodyValidator is a simple validator for email bodies
-func bodyValidator(s string) error {
-	// TODO: Implement email body validation
-	return nil
-}
+// 	return nil
+// }
 
 // initialModel returns the initial model for the program
 func initialModel() model {
-	//TODO: Add more inputs for the email body, subject, and from address
-
 	// we'll create a slice of text inputs (for now just one)
 	var inputs []textinput.Model = make([]textinput.Model, 4)
 	inputs[to] = textinput.New()
@@ -85,28 +82,26 @@ func initialModel() model {
 	inputs[to].CharLimit = 50
 	inputs[to].Width = 50
 	inputs[to].Prompt = ""
-	inputs[to].Validate = toAddressValidator
+	// inputs[to].Validate = stringValidator
 
 	inputs[from] = textinput.New()
 	inputs[from].Placeholder = "Enter from address here..."
 	inputs[from].CharLimit = 50
 	inputs[from].Width = 50
 	inputs[from].Prompt = ""
-	inputs[from].Validate = fromAddressValidator
+	// inputs[from].Validate = stringValidator
 
 	inputs[subject] = textinput.New()
 	inputs[subject].Placeholder = "Enter subject here..."
 	inputs[subject].CharLimit = 50
 	inputs[subject].Width = 50
 	inputs[subject].Prompt = ""
-	inputs[subject].Validate = subjectValidator
 
 	inputs[body] = textinput.New()
 	inputs[body].Placeholder = "Send a message..."
 	inputs[body].CharLimit = 50
 	inputs[body].Width = 50
 	inputs[body].Prompt = ""
-	inputs[body].Validate = bodyValidator
 
 	return model{
 		inputs:  inputs,
@@ -135,6 +130,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// we'll handle the enter, tab, and ctrl+n keys to focus the next input
 		case tea.KeyEnter, tea.KeyTab, tea.KeyCtrlN:
+			// we only really want to check whether the user has provided a To and From address.
+			// subject and body can be empty as the email can be sent without them.
+			if m.focused == to || m.focused == from {
+				m.err = m.validateAddress()
+				if m.err != nil {
+					return m, nil
+				}
+			}
 			m.nextInput()
 
 		// we'll handle shift+tab to focus the previous input
@@ -143,6 +146,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// we'll handle ctrl+s to send the message
 		case tea.KeyCtrlS:
+			// we don't want to send the message if there's an error
+			if m.err != nil {
+				return m, nil
+			}
 			m.sendMsg()
 			return m, tea.Quit
 
@@ -182,6 +189,43 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the model to the screen
 func (m model) View() string {
+
+	if m.err != nil {
+		return fmt.Sprintf(`
+	%s
+	%s
+	
+	%s
+	%s
+
+	%s
+	%s
+
+	%s
+	%s
+
+	%s`,
+
+			// renders the to header and input
+			inputStyle.Width(50).Render("To:"),
+			m.inputs[to].View(),
+
+			// renders the from header and input
+			inputStyle.Width(50).Render("From:"),
+			m.inputs[from].View(),
+
+			// renders the subject header and input
+			inputStyle.Width(50).Render("Subject:"),
+			m.inputs[subject].View(),
+
+			// renders the body header and input
+			inputStyle.Width(50).Render("Body:"),
+			m.inputs[body].View(),
+
+			// renders the continue prompt at the bottom of the screen
+			continueStyle.Render("(ctrl + c to quit or ctrl + s to send) ->")) + "\n" + m.err.Error() + "\n"
+	}
+
 	return fmt.Sprintf(`
 	%s
 	%s
