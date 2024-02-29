@@ -78,14 +78,35 @@ func initialModel() model {
 	//TODO: Add more inputs for the email body, subject, and from address
 
 	// we'll create a slice of text inputs (for now just one)
-	var inputs []textinput.Model = make([]textinput.Model, 1)
+	var inputs []textinput.Model = make([]textinput.Model, 4)
 	inputs[to] = textinput.New()
-	inputs[to].Placeholder = "johndoe@domain.com"
+	inputs[to].Placeholder = "Enter to address here..."
 	inputs[to].Focus()
 	inputs[to].CharLimit = 50
 	inputs[to].Width = 50
 	inputs[to].Prompt = ""
 	inputs[to].Validate = toAddressValidator
+
+	inputs[from] = textinput.New()
+	inputs[from].Placeholder = "Enter from address here..."
+	inputs[from].CharLimit = 50
+	inputs[from].Width = 50
+	inputs[from].Prompt = ""
+	inputs[from].Validate = fromAddressValidator
+
+	inputs[subject] = textinput.New()
+	inputs[subject].Placeholder = "Enter subject here..."
+	inputs[subject].CharLimit = 50
+	inputs[subject].Width = 50
+	inputs[subject].Prompt = ""
+	inputs[subject].Validate = subjectValidator
+
+	inputs[body] = textinput.New()
+	inputs[body].Placeholder = "Send a message..."
+	inputs[body].CharLimit = 50
+	inputs[body].Width = 50
+	inputs[body].Prompt = ""
+	inputs[body].Validate = bodyValidator
 
 	return model{
 		inputs:  inputs,
@@ -112,25 +133,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// we want to handle the key presses for the inputs ourselves
 		switch msg.Type {
 
-		// enter will move the focus to the next input
-		case tea.KeyEnter:
-			// if we're on the last input, we'll quit the program
-			if m.focused == len(m.inputs)-1 {
-				return m, tea.Quit
-			}
+		// we'll handle the enter, tab, and ctrl+n keys to focus the next input
+		case tea.KeyEnter, tea.KeyTab, tea.KeyCtrlN:
 			m.nextInput()
 
-		// esc and ctrl+c will quit the program
-		case tea.KeyCtrlC, tea.KeyEsc:
-			return m, tea.Quit
-
-		// tab and shift+tab will move the focus to the next and previous inputs
-		case tea.KeyShiftTab, tea.KeyCtrlP:
+		// we'll handle shift+tab to focus the previous input
+		case tea.KeyShiftTab:
 			m.prevInput()
 
-		// tab and shift+tab will move the focus to the next and previous inputs
-		case tea.KeyTab, tea.KeyCtrlN:
-			m.nextInput()
+		// we'll handle ctrl+s to send the message
+		case tea.KeyCtrlS:
+			m.sendMsg()
+			return m, tea.Quit
+
+		// we'll handle ctrl+c to quit the program
+		case tea.KeyCtrlC:
+			log.Println("Quitting...")
+			return m, tea.Quit
 		}
 
 		// we blur all the inputs so we can focus the one we want
@@ -167,10 +186,35 @@ func (m model) View() string {
 	%s
 	%s
 	
+	%s
+	%s
+
+	%s
+	%s
+
+	%s
+	%s
+
 	%s`,
+
+		// renders the to header and input
 		inputStyle.Width(50).Render("To:"),
 		m.inputs[to].View(),
-		continueStyle.Render("Continue ->")) + "\n"
+
+		// renders the from header and input
+		inputStyle.Width(50).Render("From:"),
+		m.inputs[from].View(),
+
+		// renders the subject header and input
+		inputStyle.Width(50).Render("Subject:"),
+		m.inputs[subject].View(),
+
+		// renders the body header and input
+		inputStyle.Width(50).Render("Body:"),
+		m.inputs[body].View(),
+
+		// renders the continue prompt at the bottom of the screen
+		continueStyle.Render("(ctrl + c to quit or ctrl + s to send) ->")) + "\n"
 }
 
 // nextInput focuses on the next input
@@ -185,4 +229,8 @@ func (m *model) prevInput() {
 	// we want to focus on the previous input by decrementing the focused index
 	// and wrapping around to the end if we're at the beginning
 	m.focused = (m.focused - 1 + len(m.inputs)) % len(m.inputs)
+}
+
+func (m *model) sendMsg() {
+	log.Println("Sending message...")
 }
